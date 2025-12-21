@@ -81,6 +81,14 @@ export const ACCOUNT_CONFIG_PATH = join(
 export const DEFAULT_COOLDOWN_MS = 60 * 1000; // 1 minute default cooldown
 export const MAX_RETRIES = 5; // Max retry attempts across accounts
 
+// Rate limit wait thresholds
+export const MAX_WAIT_BEFORE_ERROR_MS = 120000; // 2 minutes - throw error if wait exceeds this
+
+// Thinking model constants
+export const DEFAULT_THINKING_BUDGET = 16000; // Default thinking budget tokens
+export const CLAUDE_THINKING_MAX_OUTPUT_TOKENS = 64000; // Max output tokens for thinking models
+export const MIN_SIGNATURE_LENGTH = 50; // Minimum valid thinking signature length
+
 export default {
     ANTIGRAVITY_ENDPOINT_FALLBACKS,
     ANTIGRAVITY_HEADERS,
@@ -93,5 +101,9 @@ export default {
     DEFAULT_PORT,
     ACCOUNT_CONFIG_PATH,
     DEFAULT_COOLDOWN_MS,
-    MAX_RETRIES
+    MAX_RETRIES,
+    MAX_WAIT_BEFORE_ERROR_MS,
+    DEFAULT_THINKING_BUDGET,
+    CLAUDE_THINKING_MAX_OUTPUT_TOKENS,
+    MIN_SIGNATURE_LENGTH
 };

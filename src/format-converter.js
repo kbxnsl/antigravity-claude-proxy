@@ -8,12 +8,12 @@
  */
 
 import crypto from 'crypto';
-import { MODEL_MAPPINGS } from './constants.js';
-
-// Default thinking budget (16K tokens)
-const DEFAULT_THINKING_BUDGET = 16000;
-// Claude thinking models need larger max output tokens
-const CLAUDE_THINKING_MAX_OUTPUT_TOKENS = 64000;
+import {
+    MODEL_MAPPINGS,
+    DEFAULT_THINKING_BUDGET,
+    CLAUDE_THINKING_MAX_OUTPUT_TOKENS,
+    MIN_SIGNATURE_LENGTH
+} from './constants.js';
 
 /**
  * Map Anthropic model name to Antigravity model name
@@ -33,11 +33,11 @@ function isThinkingPart(part) {
 }
 
 /**
- * Check if a thinking part has a valid signature (>= 50 chars)
+ * Check if a thinking part has a valid signature (>= MIN_SIGNATURE_LENGTH chars)
  */
 function hasValidSignature(part) {
     const signature = part.thought === true ? part.thoughtSignature : part.signature;
-    return typeof signature === 'string' && signature.length >= 50;
+    return typeof signature === 'string' && signature.length >= MIN_SIGNATURE_LENGTH;
 }
 
 /**
@@ -187,8 +187,8 @@ export function restoreThinkingSignatures(content) {
             continue;
         }
 
-        // Keep blocks with valid signatures (>= 50 chars), sanitized
-        if (block.signature && block.signature.length >= 50) {
+        // Keep blocks with valid signatures (>= MIN_SIGNATURE_LENGTH chars), sanitized
+        if (block.signature && block.signature.length >= MIN_SIGNATURE_LENGTH) {
             filtered.push(sanitizeAnthropicThinkingBlock(block));
         }
         // Unsigned thinking blocks are dropped
@@ -360,7 +360,7 @@ function convertContentToParts(content, isClaudeModel = false) {
             parts.push({ functionResponse });
         } else if (block.type === 'thinking') {
             // Handle thinking blocks - only those with valid signatures
-            if (block.signature && block.signature.length >= 50) {
+            if (block.signature && block.signature.length >= MIN_SIGNATURE_LENGTH) {
                 // Convert to Gemini format with signature
                 parts.push({
                     text: block.thinking,

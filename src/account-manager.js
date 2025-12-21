@@ -4,7 +4,8 @@
  * automatic failover, and smart cooldown for rate-limited accounts.
  */
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { readFile, writeFile, mkdir, access } from 'fs/promises';
+import { constants as fsConstants } from 'fs';
 import { dirname } from 'path';
 import { execSync } from 'child_process';
 import { homedir } from 'os';
@@ -71,33 +72,34 @@ export class AccountManager {
         if (this.#initialized) return;
 
         try {
-            if (existsSync(this.#configPath)) {
-                const configData = readFileSync(this.#configPath, 'utf-8');
-                const config = JSON.parse(configData);
+            // Check if config file exists using async access
+            await access(this.#configPath, fsConstants.F_OK);
+            const configData = await readFile(this.#configPath, 'utf-8');
+            const config = JSON.parse(configData);
 
-                this.#accounts = (config.accounts || []).map(acc => ({
-                    ...acc,
-                    isRateLimited: acc.isRateLimited || false,
-                    rateLimitResetTime: acc.rateLimitResetTime || null,
-                    lastUsed: acc.lastUsed || null
-                }));
+            this.#accounts = (config.accounts || []).map(acc => ({
+                ...acc,
+                isRateLimited: acc.isRateLimited || false,
+                rateLimitResetTime: acc.rateLimitResetTime || null,
+                lastUsed: acc.lastUsed || null
+            }));
 
-                this.#settings = config.settings || {};
-                this.#currentIndex = config.activeIndex || 0;
+            this.#settings = config.settings || {};
+            this.#currentIndex = config.activeIndex || 0;
 
-                // Clamp currentIndex to valid range
-                if (this.#currentIndex >= this.#accounts.length) {
-                    this.#currentIndex = 0;
-                }
+            // Clamp currentIndex to valid range
+            if (this.#currentIndex >= this.#accounts.length) {
+                this.#currentIndex = 0;
+            }
 
-                console.log(`[AccountManager] Loaded ${this.#accounts.length} account(s) from config`);
-            } else {
+            console.log(`[AccountManager] Loaded ${this.#accounts.length} account(s) from config`);
+        } catch (error) {
+            if (error.code === 'ENOENT') {
                 // No config file - use single account from Antigravity database
                 console.log('[AccountManager] No config file found. Using Antigravity database (single account mode)');
-                await this.#loadDefaultAccount();
+            } else {
+                console.error('[AccountManager] Failed to load config:', error.message);
             }
-        } catch (error) {
-            console.error('[AccountManager] Failed to load config:', error.message);
             // Fall back to default account
             await this.#loadDefaultAccount();
         }
@@ -341,7 +343,7 @@ export class AccountManager {
                 if (account.isInvalid) {
                     account.isInvalid = false;
                     account.invalidReason = null;
-                    this.saveToDisk();
+                    await this.saveToDisk();
                 }
                 console.log(`[AccountManager] Refreshed OAuth token for: ${account.email}`);
             } catch (error) {
@@ -454,15 +456,13 @@ export class AccountManager {
     }
 
     /**
-     * Save current state to disk
+     * Save current state to disk (async)
      */
-    saveToDisk() {
+    async saveToDisk() {
         try {
             // Ensure directory exists
             const dir = dirname(this.#configPath);
-            if (!existsSync(dir)) {
-                mkdirSync(dir, { recursive: true });
-            }
+            await mkdir(dir, { recursive: true });
 
             const config = {
                 accounts: this.#accounts.map(acc => ({
@@ -483,7 +483,7 @@ export class AccountManager {
                 activeIndex: this.#currentIndex
             };
 
-            writeFileSync(this.#configPath, JSON.stringify(config, null, 2));
+            await writeFile(this.#configPath, JSON.stringify(config, null, 2));
         } catch (error) {
             console.error('[AccountManager] Failed to save config:', error.message);
         }

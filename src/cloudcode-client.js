@@ -14,7 +14,9 @@ import {
     ANTIGRAVITY_ENDPOINT_FALLBACKS,
     ANTIGRAVITY_HEADERS,
     AVAILABLE_MODELS,
-    MAX_RETRIES
+    MAX_RETRIES,
+    MAX_WAIT_BEFORE_ERROR_MS,
+    MIN_SIGNATURE_LENGTH
 } from './constants.js';
 import {
     mapModelName,
@@ -250,7 +252,7 @@ export async function sendMessage(anthropicRequest, accountManager) {
                 const resetTime = new Date(Date.now() + waitMs).toISOString();
 
                 // If wait time is too long (> 2 minutes), throw error immediately
-                if (waitMs > 120000) {
+                if (waitMs > MAX_WAIT_BEFORE_ERROR_MS) {
                     throw new Error(
                         `RESOURCE_EXHAUSTED: Rate limited. Quota will reset after ${formatDuration(waitMs)}. Next available: ${resetTime}`
                     );
@@ -448,7 +450,9 @@ async function parseThinkingSSEResponse(response, originalModel) {
                         accumulatedText += part.text;
                     }
                 }
-            } catch (e) { /* skip parse errors */ }
+            } catch (e) {
+                    console.log('[CloudCode] SSE parse warning:', e.message, 'Raw:', jsonText.slice(0, 100));
+                }
         }
     }
 
@@ -496,7 +500,7 @@ export async function* sendMessageStream(anthropicRequest, accountManager) {
                 const resetTime = new Date(Date.now() + waitMs).toISOString();
 
                 // If wait time is too long (> 2 minutes), throw error immediately
-                if (waitMs > 120000) {
+                if (waitMs > MAX_WAIT_BEFORE_ERROR_MS) {
                     throw new Error(
                         `RESOURCE_EXHAUSTED: Rate limited. Quota will reset after ${formatDuration(waitMs)}. Next available: ${resetTime}`
                     );
@@ -692,7 +696,7 @@ async function* streamSSEResponse(response, originalModel) {
                             };
                         }
 
-                        if (signature && signature.length >= 50) {
+                        if (signature && signature.length >= MIN_SIGNATURE_LENGTH) {
                             currentThinkingSignature = signature;
                         }
 

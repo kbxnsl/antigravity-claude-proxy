@@ -19,23 +19,32 @@ const accountManager = new AccountManager();
 // Track initialization status
 let isInitialized = false;
 let initError = null;
+let initPromise = null;
 
 /**
- * Ensure account manager is initialized
+ * Ensure account manager is initialized (with race condition protection)
  */
 async function ensureInitialized() {
     if (isInitialized) return;
 
-    try {
-        await accountManager.initialize();
-        isInitialized = true;
-        const status = accountManager.getStatus();
-        console.log(`[Server] Account pool initialized: ${status.summary}`);
-    } catch (error) {
-        initError = error;
-        console.error('[Server] Failed to initialize account manager:', error.message);
-        throw error;
-    }
+    // If initialization is already in progress, wait for it
+    if (initPromise) return initPromise;
+
+    initPromise = (async () => {
+        try {
+            await accountManager.initialize();
+            isInitialized = true;
+            const status = accountManager.getStatus();
+            console.log(`[Server] Account pool initialized: ${status.summary}`);
+        } catch (error) {
+            initError = error;
+            initPromise = null; // Allow retry on failure
+            console.error('[Server] Failed to initialize account manager:', error.message);
+            throw error;
+        }
+    })();
+
+    return initPromise;
 }
 
 // Middleware
