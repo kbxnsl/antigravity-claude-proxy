@@ -15,6 +15,7 @@ log.txt
 
 # Local config (may contain tokens)
 .claude/
+.config/
 
 # Test artifacts
 tests/utils/*.png

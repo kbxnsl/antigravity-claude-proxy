@@ -4,6 +4,7 @@
  * automatic failover, and smart cooldown for rate-limited accounts.
  */
 
+import 'dotenv/config';
 import { readFile, writeFile, mkdir, access } from 'fs/promises';
 import { constants as fsConstants } from 'fs';
 import { dirname } from 'path';
@@ -42,6 +43,21 @@ export class AccountManager {
     async initialize() {
         if (this.#initialized) return;
 
+        // Try loading from environment variables first
+        const envAccounts = this.#loadFromEnv();
+        if (envAccounts.length > 0) {
+            this.#accounts = envAccounts;
+            this.#settings = {
+                cooldownDurationMs: parseInt(process.env.COOLDOWN_DURATION_MS) || DEFAULT_COOLDOWN_MS,
+                maxRetries: parseInt(process.env.MAX_RETRIES) || 5
+            };
+            this.#currentIndex = 0;
+            console.log(`[AccountManager] Loaded ${this.#accounts.length} account(s) from environment variables`);
+            this.#initialized = true;
+            return;
+        }
+
+        // Fallback to JSON file
         try {
             // Check if config file exists using async access
             await access(this.#configPath, fsConstants.F_OK);
@@ -63,7 +79,7 @@ export class AccountManager {
                 this.#currentIndex = 0;
             }
 
-            console.log(`[AccountManager] Loaded ${this.#accounts.length} account(s) from config`);
+            console.log(`[AccountManager] Loaded ${this.#accounts.length} account(s) from config file`);
 
             // If config exists but has no accounts, fall back to Antigravity database
             if (this.#accounts.length === 0) {
@@ -85,6 +101,36 @@ export class AccountManager {
         this.clearExpiredLimits();
 
         this.#initialized = true;
+    }
+
+    /**
+     * Load accounts from environment variables
+     * @returns {Array<Object>} Array of account objects from env vars
+     */
+    #loadFromEnv() {
+        const accounts = [];
+        let index = 1;
+
+        while (index <= 10) { // Support up to 10 accounts
+            const email = process.env[`ACCOUNT_${index}_EMAIL`];
+            if (!email) break; // No more accounts
+
+            const account = {
+                email,
+                source: process.env[`ACCOUNT_${index}_SOURCE`] || 'oauth',
+                refreshToken: process.env[`ACCOUNT_${index}_REFRESH_TOKEN`],
+                projectId: process.env[`ACCOUNT_${index}_PROJECT_ID`],
+                addedAt: new Date().toISOString(),
+                isRateLimited: false,
+                rateLimitResetTime: null,
+                lastUsed: null
+            };
+
+            accounts.push(account);
+            index++;
+        }
+
+        return accounts;
     }
 
     /**
@@ -557,37 +603,43 @@ export class AccountManager {
     }
 
     /**
-     * Save current state to disk (async)
+     * Save current state to .env file (async)
      * @returns {Promise<void>}
      */
     async saveToDisk() {
         try {
-            // Ensure directory exists
-            const dir = dirname(this.#configPath);
-            await mkdir(dir, { recursive: true });
+            const envLines = [];
 
-            const config = {
-                accounts: this.#accounts.map(acc => ({
-                    email: acc.email,
-                    source: acc.source,
-                    dbPath: acc.dbPath || null,
-                    refreshToken: acc.source === 'oauth' ? acc.refreshToken : undefined,
-                    apiKey: acc.source === 'manual' ? acc.apiKey : undefined,
-                    projectId: acc.projectId || undefined,
-                    addedAt: acc.addedAt || undefined,
-                    isRateLimited: acc.isRateLimited,
-                    rateLimitResetTime: acc.rateLimitResetTime,
-                    isInvalid: acc.isInvalid || false,
-                    invalidReason: acc.invalidReason || null,
-                    lastUsed: acc.lastUsed
-                })),
-                settings: this.#settings,
-                activeIndex: this.#currentIndex
-            };
+            // Add header comment
+            envLines.push('# Antigravity Claude Proxy - Account Configuration');
+            envLines.push('# Auto-generated - do not edit manually');
+            envLines.push('');
 
-            await writeFile(this.#configPath, JSON.stringify(config, null, 2));
+            // Add accounts
+            this.#accounts.forEach((acc, index) => {
+                const num = index + 1;
+                envLines.push(`# Account ${num}: ${acc.email}`);
+                envLines.push(`ACCOUNT_${num}_EMAIL=${acc.email}`);
+                if (acc.refreshToken) {
+                    envLines.push(`ACCOUNT_${num}_REFRESH_TOKEN=${acc.refreshToken}`);
+                }
+                if (acc.projectId) {
+                    envLines.push(`ACCOUNT_${num}_PROJECT_ID=${acc.projectId}`);
+                }
+                envLines.push(`ACCOUNT_${num}_SOURCE=${acc.source || 'oauth'}`);
+                envLines.push('');
+            });
+
+            // Add settings  
+            envLines.push('# Settings');
+            envLines.push(`COOLDOWN_DURATION_MS=${this.#settings.cooldownDurationMs || DEFAULT_COOLDOWN_MS}`);
+            envLines.push(`MAX_RETRIES=${this.#settings.maxRetries || 5}`);
+            envLines.push('');
+
+            await writeFile('.env', envLines.join('\n'));
+            console.log('[AccountManager] Saved configuration to .env file');
         } catch (error) {
-            console.error('[AccountManager] Failed to save config:', error.message);
+            console.error('[AccountManager] Failed to save to .env:', error.message);
         }
     }
 
