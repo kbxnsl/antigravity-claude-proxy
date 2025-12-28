@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Environment and config
+.env
+.env.*
+.config/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Tests
+tests/
+*.test.js
+*.spec.js
+
+# Documentation
+*.md
+!README.md
+docs/
+
+# CI/CD
+.github/
+
+# Logs
+*.log
+log.txt
+
+# Build artifacts
+dist/
+build/
+
+# Local development
+.claude/

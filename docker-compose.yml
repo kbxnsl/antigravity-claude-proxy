@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  antigravity-claude-proxy:
+    build: .
+    container_name: antigravity-claude-proxy
+    ports:
+      - "31080:31080"
+    environment:
+      # Account Configuration (set these in Portainer environment variables)
+      - ACCOUNT_1_EMAIL=${ACCOUNT_1_EMAIL}
+      - ACCOUNT_1_REFRESH_TOKEN=${ACCOUNT_1_REFRESH_TOKEN}
+      - ACCOUNT_1_PROJECT_ID=${ACCOUNT_1_PROJECT_ID}
+      - ACCOUNT_1_SOURCE=${ACCOUNT_1_SOURCE:-oauth}
+      
+      # Optional: Additional accounts
+      # - ACCOUNT_2_EMAIL=${ACCOUNT_2_EMAIL}
+      # - ACCOUNT_2_REFRESH_TOKEN=${ACCOUNT_2_REFRESH_TOKEN}
+      # - ACCOUNT_2_PROJECT_ID=${ACCOUNT_2_PROJECT_ID}
+      # - ACCOUNT_2_SOURCE=${ACCOUNT_2_SOURCE:-oauth}
+      
+      # Settings
+      - COOLDOWN_DURATION_MS=${COOLDOWN_DURATION_MS:-60000}
+      - MAX_RETRIES=${MAX_RETRIES:-5}
+      
+      # Optional: Override default port
+      # - PORT=${PORT:-31080}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:31080/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 3s
+      start_period: 5s
+      retries: 3
